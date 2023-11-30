@@ -26,28 +26,28 @@ fatal() {
 
 # Function to check if a command exists
 function exists() {
-  type "$1" &> /dev/null 
+    type "$1" &> /dev/null
 }
 
 # Generate a random password using openssl
 randomPass() {
     exists openssl || {
-      info "Installing openssl... 🔐"
-      sudo apt update &> /dev/null
-      sudo apt install openssl -y &> /dev/null
+        info "Installing openssl... 🔐"
+        sudo apt update &> /dev/null
+        sudo apt install openssl -y &> /dev/null
     }
     openssl rand -hex 10
 }
 
 # Create dynamic passwords and update the environment file
 function create_passwords() {
-  info "Creating dynamic passwords..."
-  sed -i "s/change_me_domain/${DOMAIN_NAME}/g" common.env
-  sed -i "s/change_me_jwt/$(randomPass)/g" common.env
-  sed -i "s/change_me_s3_key/$(randomPass)/g" common.env
-  sed -i "s/change_me_s3_secret/$(randomPass)/g" common.env
-  sed -i "s/change_me_pg_password/$(randomPass)/g" common.env
-  info "Passwords created and updated in common.env file."
+    info "Creating dynamic passwords..."
+    sed -i "s/change_me_domain/${DOMAIN_NAME}/g" common.env
+    sed -i "s/change_me_jwt/$(randomPass)/g" common.env
+    sed -i "s/change_me_s3_key/$(randomPass)/g" common.env
+    sed -i "s/change_me_s3_secret/$(randomPass)/g" common.env
+    sed -i "s/change_me_pg_password/$(randomPass)/g" common.env
+    info "Passwords created and updated in common.env file."
 }
 
 # update apt cache
@@ -55,11 +55,21 @@ info "Grabbing latest apt caches"
 sudo apt update
 
 # setup docker
-info "Setting up Docker"
-sudo apt install docker.io docker-compose -y
+if command -v docker &> /dev/null; 
+then
+    info "Docker already installed."
+else
+    info "Setting up Docker"
+    #The Ubuntu package docker actually refers to a GUI application, not the beloved DevOps tool we've come out to look for.
+    sudo apt install docker docker-compose -y
+    
+    # enable docker without sud
+    sudo groupadd docker
+    sudo usermod -aG docker "${USER}"
 
-# enable docker without sudo
-sudo usermod -aG docker "${USER}" || true
+    # install docker command
+    curl -sSL https://get.docker.com/ | sudo sh
+fi
 
 # Prompt for DOMAIN_NAME input
 echo -e "${GREEN}Please provide your domain name.${NC}"
@@ -87,8 +97,8 @@ set +a
 
 # Use the `envsubst` command to substitute the shell environment variables into reference_var.env and output to a combined .env
 find ./ -type f \( -iname "*.env" -o -iname "docker-compose.yaml" \) ! -name "common.env" -exec /bin/bash -c 'file="{}"; git checkout -- "$file"; cp "$file" "$file.bak"; envsubst < "$file.bak" > "$file"; rm "$file.bak"' \;
-sudo -E docker-compose pull --no-parallel
-sudo -E docker-compose up -d
+docker-compose --parallel=1 pull
+docker-compose up -d
 echo "🎉🎉🎉  Done! 🎉🎉🎉"
 
 cp -rf ../docker-compose ~/openreplay-docker-compose
